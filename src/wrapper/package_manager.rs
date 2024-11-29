@@ -1,14 +1,13 @@
-use crate::error::PackageManagerError;
-use std::{io::Write, process::{Command, Output, Stdio}};
+use crate::{error::PackageManagerError, wrapper::command};
+use std::process::{Command, ExitStatus, Output};
 
 pub enum PackageManagerEnum {
     Pacman,
     Paru,
-    Yay
+    Yay,
 }
 
 impl PackageManagerEnum {
-
     pub fn get_aur_helper() -> PackageManagerEnum {
         if PackageManager::check_installed(&PackageManagerEnum::Paru).is_ok() {
             return PackageManagerEnum::Paru;
@@ -26,10 +25,24 @@ impl PackageManagerEnum {
             PackageManagerEnum::Yay => "yay".to_owned(),
         }
     }
+
+    pub fn get_package_param(&self, update: bool) -> String {
+        let param = match self {
+            PackageManagerEnum::Pacman => "-S".to_owned(),
+            PackageManagerEnum::Paru => "-S".to_owned(),
+            PackageManagerEnum::Yay => "-S".to_owned(),
+        };
+
+        if update {
+            return format!("{}yu", param);
+        }
+
+        return param;
+    }
 }
 
 pub struct PackageManager {
-    package_manager: PackageManagerEnum
+    package_manager: PackageManagerEnum,
 }
 
 impl PackageManager {
@@ -38,58 +51,52 @@ impl PackageManager {
         Ok(PackageManager { package_manager })
     }
 
-    pub fn install_packages(&self, packages: &[String]) -> Result<(), PackageManagerError> {
-        let packages_str: String = packages.join("\n");
+    pub fn install_packages(
+        &self,
+        mut packages: Vec<String>,
+        update: bool,
+    ) -> Result<(), PackageManagerError> {
+        let program: &str = &self.package_manager.get_command();
+        let mut args: Vec<String> = vec![self.package_manager.get_package_param(update)];
+        args.append(&mut packages);
+        let command: Result<ExitStatus, std::io::Error> = command::run_command(program, args);
 
-        println!("Following packages will be installed\n{}", packages_str);
-        let _ = &self.ask_continue()?;
+        let exit_status: ExitStatus = command.expect("Failed to read exit status");
 
-        let output_result: Result<Output, std::io::Error> = Command::new(&self.package_manager.get_command())
-            .arg("-S")
-            .arg(packages.join(" "))
-            .arg("--noconfirm")
-            .stdout(Stdio::piped())
+        if !exit_status.success() {
+            return Err(PackageManagerError::InstallFailed(
+                "package.error.installFailed".to_owned(),
+                Vec::new(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub fn check_installed(
+        package_manager: &PackageManagerEnum,
+    ) -> Result<(), PackageManagerError> {
+        let output_result: Result<Output, std::io::Error> = Command::new("which")
+            .arg(package_manager.get_command())
             .output();
 
         let output = match output_result {
             Ok(output) => output,
-            Err(_) => return Err(PackageManagerError::InstallFailed("package.error.horribleWrong".to_owned(), Vec::new())),
+            Err(_) => {
+                return Err(PackageManagerError::WhichIsNotInstalled(
+                    "package.error.whichIsNotInstalled".to_owned(),
+                    Vec::new(),
+                ))
+            }
         };
 
         if !output.status.success() {
-            let stdout = String::from_utf8(output.stdout).unwrap();
-            println!("{}", stdout);
-            return Err(PackageManagerError::InstallFailed("package.error.installFailed".to_owned(), Vec::new()));
+            return Err(PackageManagerError::NotInstalled(
+                "package.error.notInstalled".to_owned(),
+                Vec::new(),
+            ));
         }
 
         Ok(())
-    }
-
-    pub fn check_installed(package_manager: &PackageManagerEnum) -> Result<(), PackageManagerError> {
-        let output_result: Result<Output, std::io::Error> =
-            Command::new("which").arg(package_manager.get_command()).output();
-
-        let output = match output_result {
-            Ok(output) => output,
-            Err(_) => return Err(PackageManagerError::WhichIsNotInstalled("package.error.whichIsNotInstalled".to_owned(), Vec::new())),
-        };
-
-        if !output.status.success() {
-            return Err(PackageManagerError::NotInstalled("package.error.notInstalled".to_owned(), Vec::new()));
-        }
-
-        Ok(())
-    }
-
-    fn ask_continue(&self) -> Result<(), PackageManagerError> {
-        print!("Do you want to continue? y/N: ");
-        std::io::stdout().flush().unwrap();
-        let mut val: String = String::new();
-        std::io::stdin().read_line(&mut val).unwrap();
-        let val = val.trim();
-        if val.eq("yes") | val.eq("y") {
-            return Ok(())
-        }
-        Err(PackageManagerError::UserAbort("error.userAbort".to_owned(), Vec::new()))
     }
 }

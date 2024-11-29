@@ -1,68 +1,60 @@
-use std::{fs::File, io::Read};
-
+use args::Args;
+use clap::Parser;
 use error::ApplicationError;
 use model::{ConfigFile, DotConfig};
-use wrapper::package_manager::{PackageManager, PackageManagerEnum};
+use wrapper::command;
+use service::config_service;
 
+mod args;
 mod error;
+mod service;
 mod model;
 mod wrapper;
 
-fn main() -> Result<(), ApplicationError>{    
-    let config_file: ConfigFile = get_config();
+fn main() -> Result<(), ApplicationError>{   
 
-    let packages: Vec<String> = config_file.packages.iter().filter_map(|s| {
-        if !s.is_aur {
-            return Option::Some(s.package_name.clone());
-        }
-        return None;
-    }).collect();
-
-    let packages_aur: Vec<String> = config_file.packages.iter().filter_map(|s| {
-        if s.is_aur {
-            return Option::Some(s.package_name.clone());
-        }
-        return None;
-    }).collect();
-
-    if packages.len() > 0 {
-        let pacman: PackageManager = PackageManager::new(PackageManagerEnum::Pacman)?;
-        pacman.install_packages(&packages)?;
+    let uid: u32 = command::get_uid();
+    if uid != 0 {
+        eprintln!("The programm should be executed with root. Try to use sudo/doas.");
+        std::process::exit(1);
     }
 
-    if packages_aur.len() > 0 {
-        let paru: PackageManager = PackageManager::new(PackageManagerEnum::get_aur_helper())?;
-        paru.install_packages(&packages_aur)?;
+    println!(r"  
+  _   ___     ____          _______ _____          
+ | \ | \ \   / /\ \        / /_   _|  __ \   /\    
+ |  \| |\ \_/ /  \ \  /\  / /  | | | |  | | /  \   
+ | . ` | \   /    \ \/  \/ /   | | | |  | |/ /\ \  
+ | |\  |  | |      \  /\  /   _| |_| |__| / ____ \ 
+ |_| \_|  |_|       \/  \/   |_____|_____/_/    \_\
+                                                   ");
+    command::ask_continue()?;
+
+    let args: Args = Args::parse();
+
+    let config_file: ConfigFile = config_service::get_config(&args.config_path);
+
+    let scripts_path: Vec<String> = config_service::get_before_scripts(&config_file);
+
+    for script_path in scripts_path {
+        println!("Running before script: {}", script_path);
+        command::run_command("sh", vec![script_path]).unwrap();
     }
+    
+    let amount: usize = config_service::install_all_packages(&config_file, args.update)?;
+    println!("Re/Installed {} packages", amount);
 
     let dot_files: Vec<DotConfig> = config_file.packages.iter().filter_map(|f| f.dot_config.clone()).collect();
     
     for dot_file in dot_files {
-        copy_file(&dot_file.src, &dot_file.dest).unwrap();
+        config_service::copy_file(&dot_file.src, &dot_file.dest).unwrap();
     }
-    
-    Ok(())
-}
 
+    let scripts_path: Vec<String> = config_service::get_post_scripts(&config_file);
 
-pub fn get_config() -> ConfigFile {
-    let mut file: File = File::open("/etc/nywida/configuration.jsonc").expect("Failed to open /etc/nywida/configuration.jsonc");
-    let mut buf: Vec<u8> = Vec::new();
-    file.read_to_end(&mut buf).unwrap();
-
-    let config_json: String = String::from_utf8(buf).unwrap();
-    let config_file: ConfigFile = serde_jsonc::from_str(&config_json).unwrap();
-
-    return config_file;
-}
-
-pub fn copy_file(src: &str, dest: &str) -> Result<(), std::io::Error> {
-    println!("Copying {} to {}", src, dest);
-    let filename: &str = src.split("/").last().unwrap();
-    if let Err(e) = std::fs::create_dir_all(dest) {
-        eprintln!("Path already exists. Overwriting: {}", e);
-    };
-    std::fs::copy(src, format!("{dest}/{filename}"))?;
+    for script_path in scripts_path {
+        println!("Running post script: {}", script_path);
+        command::run_command("sh", vec![script_path]).unwrap();
+    }
 
     Ok(())
 }

@@ -14,7 +14,6 @@ pub enum PackageManagerError {
     NotInstalled(String, Vec<String>),
     WhichIsNotInstalled(String, Vec<String>),
     InstallFailed(String, Vec<String>),
-    UserAbort(String, Vec<String>),
 }
 
 impl From<PackageManagerError> for ApplicationError {
@@ -23,7 +22,18 @@ impl From<PackageManagerError> for ApplicationError {
             PackageManagerError::NotInstalled(label, params) => ApplicationError::new(&label, params),
             PackageManagerError::WhichIsNotInstalled(label, params) => ApplicationError::new(&label, params),
             PackageManagerError::InstallFailed(label, params) => ApplicationError::new(&label, params),
-            PackageManagerError::UserAbort(label, params) => ApplicationError::new(&label, params),
+        }
+    }
+}
+
+pub enum CommandError {
+    UserAbort(String, Vec<String>),
+}
+
+impl From<CommandError> for ApplicationError {
+    fn from(value: CommandError) -> Self {
+        match value {
+            CommandError::UserAbort(label, params) => ApplicationError::new(&label, params),
         }
     }
 }
