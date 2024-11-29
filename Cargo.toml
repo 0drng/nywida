@@ -1,0 +1,8 @@
+[package]
+name = "nywida"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.215", features = ["derive"] }
+serde_jsonc = "1.0.108"
