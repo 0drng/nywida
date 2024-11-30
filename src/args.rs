@@ -8,4 +8,7 @@ pub struct Args {
 
     #[arg(short, long)]
     pub update: bool,
+
+    #[arg(short, long)]
+    pub dependencies: bool,
 }

@@ -50,6 +50,15 @@ fn main() -> Result<(), ApplicationError> {
         )
     );
 
+    let amount: usize = config_service::remove_all_packages(&config_file, args.dependencies)?;
+    println!(
+        "{}",
+        t(
+            Labels::Info_NewlyUninstalledPackages,
+            Option::Some(vec![amount.to_string()])
+        )
+    );
+
     let dot_files: Vec<DotConfig> = config_file
         .packages
         .iter()
