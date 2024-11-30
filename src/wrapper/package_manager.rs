@@ -1,4 +1,4 @@
-use crate::{error::PackageManagerError, wrapper::command};
+use crate::{error::PackageManagerError, service::translation_service::Labels, wrapper::command};
 use std::process::{Command, ExitStatus, Output};
 
 pub enum PackageManagerEnum {
@@ -8,14 +8,17 @@ pub enum PackageManagerEnum {
 }
 
 impl PackageManagerEnum {
-    pub fn get_aur_helper() -> PackageManagerEnum {
+    pub fn get_aur_helper() -> Result<PackageManagerEnum, PackageManagerError> {
         if PackageManager::check_installed(&PackageManagerEnum::Paru).is_ok() {
-            return PackageManagerEnum::Paru;
+            return Ok(PackageManagerEnum::Paru);
         }
         if PackageManager::check_installed(&PackageManagerEnum::Yay).is_ok() {
-            return PackageManagerEnum::Yay;
+            return Ok(PackageManagerEnum::Yay);
         }
-        panic!("No AUR helper found");
+        Err(PackageManagerError::NotInstalled(
+            Labels::Error_NoAURHelper,
+            None,
+        ))
     }
 
     pub fn get_command(&self) -> String {
@@ -26,7 +29,7 @@ impl PackageManagerEnum {
         }
     }
 
-    pub fn get_package_param(&self, update: bool) -> String {
+    pub fn get_install_param(&self, update: bool) -> String {
         let param = match self {
             PackageManagerEnum::Pacman => "-S".to_owned(),
             PackageManagerEnum::Paru => "-S".to_owned(),
@@ -35,6 +38,20 @@ impl PackageManagerEnum {
 
         if update {
             return format!("{}yu", param);
+        }
+
+        return param;
+    }
+
+    pub fn get_uninstall_param(&self, with_dependencies: bool) -> String {
+        let param = match self {
+            PackageManagerEnum::Pacman => "-R".to_owned(),
+            PackageManagerEnum::Paru => "-R".to_owned(),
+            PackageManagerEnum::Yay => "-R".to_owned(),
+        };
+
+        if with_dependencies {
+            return format!("{}ncs", param);
         }
 
         return param;
@@ -57,16 +74,35 @@ impl PackageManager {
         update: bool,
     ) -> Result<(), PackageManagerError> {
         let program: &str = &self.package_manager.get_command();
-        let mut args: Vec<String> = vec![self.package_manager.get_package_param(update)];
+        let mut args: Vec<String> = vec![self.package_manager.get_install_param(update)];
         args.append(&mut packages);
-        let command: Result<ExitStatus, std::io::Error> = command::run_command(program, args);
-
-        let exit_status: ExitStatus = command.expect("Failed to read exit status");
+        let exit_status: ExitStatus = command::run_command(program, args)?;
 
         if !exit_status.success() {
             return Err(PackageManagerError::InstallFailed(
-                "package.error.installFailed".to_owned(),
-                Vec::new(),
+                Labels::Error_InstallationFailed,
+                None,
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub fn uninstall_packages(
+        &self,
+        mut packages: Vec<String>,
+        with_dependencies: bool,
+    ) -> Result<(), PackageManagerError> {
+        let program: &str = &self.package_manager.get_command();
+        let mut args: Vec<String> =
+            vec![self.package_manager.get_uninstall_param(with_dependencies)];
+        args.append(&mut packages);
+        let exit_status: ExitStatus = command::run_command(program, args)?;
+
+        if !exit_status.success() {
+            return Err(PackageManagerError::UninstallFailed(
+                Labels::Error_UninstallFailed,
+                None,
             ));
         }
 
@@ -84,19 +120,32 @@ impl PackageManager {
             Ok(output) => output,
             Err(_) => {
                 return Err(PackageManagerError::WhichIsNotInstalled(
-                    "package.error.whichIsNotInstalled".to_owned(),
-                    Vec::new(),
+                    Labels::Error_Which_NotInstalled,
+                    None,
                 ))
             }
         };
 
         if !output.status.success() {
             return Err(PackageManagerError::NotInstalled(
-                "package.error.notInstalled".to_owned(),
-                Vec::new(),
+                Labels::Error_PackageManager_NotInstalled,
+                None,
             ));
         }
 
         Ok(())
+    }
+
+    pub fn get_installed(&self) -> Vec<String> {
+        let output: Output = Command::new(&self.package_manager.get_command())
+            .arg("-Qqe")
+            .output()
+            .unwrap();
+
+        return String::from_utf8(output.stdout)
+            .unwrap()
+            .split("\n")
+            .map(|f| f.to_owned())
+            .collect();
     }
 }
