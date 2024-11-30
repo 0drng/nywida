@@ -1,4 +1,4 @@
-use crate::{error::PackageManagerError, wrapper::command};
+use crate::{error::PackageManagerError, service::translation_service::Labels, wrapper::command};
 use std::process::{Command, ExitStatus, Output};
 
 pub enum PackageManagerEnum {
@@ -8,14 +8,14 @@ pub enum PackageManagerEnum {
 }
 
 impl PackageManagerEnum {
-    pub fn get_aur_helper() -> PackageManagerEnum {
+    pub fn get_aur_helper() -> Result<PackageManagerEnum, PackageManagerError> {
         if PackageManager::check_installed(&PackageManagerEnum::Paru).is_ok() {
-            return PackageManagerEnum::Paru;
+            return Ok(PackageManagerEnum::Paru);
         }
         if PackageManager::check_installed(&PackageManagerEnum::Yay).is_ok() {
-            return PackageManagerEnum::Yay;
+            return Ok(PackageManagerEnum::Yay);
         }
-        panic!("No AUR helper found");
+        Err(PackageManagerError::NotInstalled(Labels::Error_NoAURHelper, None))
     }
 
     pub fn get_command(&self) -> String {
@@ -59,14 +59,12 @@ impl PackageManager {
         let program: &str = &self.package_manager.get_command();
         let mut args: Vec<String> = vec![self.package_manager.get_package_param(update)];
         args.append(&mut packages);
-        let command: Result<ExitStatus, std::io::Error> = command::run_command(program, args);
-
-        let exit_status: ExitStatus = command.expect("Failed to read exit status");
+        let exit_status: ExitStatus = command::run_command(program, args)?;
 
         if !exit_status.success() {
             return Err(PackageManagerError::InstallFailed(
-                "package.error.installFailed".to_owned(),
-                Vec::new(),
+                Labels::Error_InstallationFailed,
+                None
             ));
         }
 
@@ -84,16 +82,16 @@ impl PackageManager {
             Ok(output) => output,
             Err(_) => {
                 return Err(PackageManagerError::WhichIsNotInstalled(
-                    "package.error.whichIsNotInstalled".to_owned(),
-                    Vec::new(),
+                    Labels::Error_Which_NotInstalled,
+                    None
                 ))
             }
         };
 
         if !output.status.success() {
             return Err(PackageManagerError::NotInstalled(
-                "package.error.notInstalled".to_owned(),
-                Vec::new(),
+                Labels::Error_PackageManager_NotInstalled,
+                None
             ));
         }
 

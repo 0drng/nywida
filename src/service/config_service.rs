@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read};
 
-use crate::{error::PackageManagerError, model::ConfigFile, wrapper::{command, package_manager::{PackageManager, PackageManagerEnum}}};
+use crate::{error::PackageManagerError, model::ConfigFile, service::translation_service::{t, Labels}, wrapper::{command, package_manager::{PackageManager, PackageManagerEnum}}};
 
 pub fn get_packages_str(config_file: &ConfigFile, aur: bool) -> Vec<String> {
     let packages_aur: Vec<String> = config_file.packages.iter().filter_map(|package| {
@@ -37,7 +37,7 @@ pub fn install_all_packages(config_file: &ConfigFile, update: bool) -> Result<us
     let packages_len: usize = packages.len();
 
     if packages_aur_len > 0 {
-        let paru: PackageManager = PackageManager::new(PackageManagerEnum::get_aur_helper())?;
+        let paru: PackageManager = PackageManager::new(PackageManagerEnum::get_aur_helper()?)?;
         paru.install_packages(packages_aur, update)?;
     }
 
@@ -61,7 +61,7 @@ pub fn get_config(path: &str) -> ConfigFile {
 }
 
 pub fn copy_file(src: &str, dest: &str) -> Result<(), std::io::Error> {
-    println!("Copying {} to {}", src, dest);
+    println!("{}", t(Labels::Info_CopyingFile, Some(vec![src.to_owned(), dest.to_owned()])));
     let filename: &str = src.split("/").last().unwrap();
     if let Err(e) = std::fs::create_dir_all(dest) {
         eprintln!("File already exists. Overwriting: {}", e);
