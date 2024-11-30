@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use lazy_static::lazy_static;
+use std::collections::HashMap;
 
 lazy_static! {
     static ref LOCALE: String = std::env::var("LANG")
@@ -19,6 +19,10 @@ lazy_static! {
             (Labels::Error_InstallationFailed, "错误：安装软件包失败".to_owned()),
             (Labels::Error_CommandFailed, "错误：无法生成命令".to_owned()),
             (Labels::Error_CommandStdoutFailed, "错误：无法从命令获取标准输出".to_owned()),
+            (Labels::Error_UninstallFailed, "错误：软件包卸载失败".to_owned()),
+            (Labels::Error_FileOpenFailed, "错误：无法打开文件 {0}".to_owned()),
+            (Labels::Error_FileAlreadyExists, "错误：文件 {0} 已存在。正在覆盖。".to_owned()),
+            (Labels::Info_NewlyUninstalledPackages, "信息：{0} 个软件包已被删除".to_owned()),
             (Labels::Info_ConfirmContinue, "信息：是否要继续？y/N: ".to_owned()),
             (Labels::Info_StartingPackageInstallation, "信息：开始安装软件包：{0}".to_owned()),
             (Labels::Info_ExecutingPreScript, "信息：执行前置脚本：{0}".to_owned()),
@@ -35,6 +39,10 @@ lazy_static! {
             (Labels::Error_InstallationFailed, "FEHLER: Installation der Pakete fehlgeschlagen".to_owned()),
             (Labels::Error_CommandFailed, "FEHLER: Der Befehl konnte nicht ausgeführt werden".to_owned()),
             (Labels::Error_CommandStdoutFailed, "FEHLER: Die Standardausgabe des Befehls konnte nicht gelesen werden".to_owned()),
+            (Labels::Error_UninstallFailed, "FEHLER: Deinstallation des Pakets fehlgeschlagen".to_owned()),
+            (Labels::Error_FileOpenFailed, "FEHLER: Datei {0} konnte nicht geöffnet werden".to_owned()),
+            (Labels::Error_FileAlreadyExists, "FEHLER: Datei {0} existiert bereits. Überschreiben.".to_owned()),
+            (Labels::Info_NewlyUninstalledPackages, "INFO: {0} Pakete wurden gelöscht".to_owned()),
             (Labels::Info_ConfirmContinue, "INFO: Möchten Sie fortfahren? y/N: ".to_owned()),
             (Labels::Info_StartingPackageInstallation, "INFO: Start der Paketinstallation von: {0}".to_owned()),
             (Labels::Info_ExecutingPreScript, "INFO: Ausführen des vorherigen Skripts: {0}".to_owned()),
@@ -51,6 +59,10 @@ lazy_static! {
             (Labels::Error_InstallationFailed, "ERROR: Failed to install packages".to_owned()),
             (Labels::Error_CommandFailed, "ERROR: Failed to spawn command".to_owned()),
             (Labels::Error_CommandStdoutFailed, "ERROR: Failed to get stdout from command".to_owned()),
+            (Labels::Error_UninstallFailed, "ERROR: Package uninstall failed".to_owned()),
+            (Labels::Error_FileOpenFailed, "ERROR: Failed to open file {0}".to_owned()),
+            (Labels::Error_FileAlreadyExists, "ERROR: File {0} already exists. Overwriting.".to_owned()),
+            (Labels::Info_NewlyUninstalledPackages, "INFO: {0} packages got deleted".to_owned()),
             (Labels::Info_ConfirmContinue, "INFO: Do you want to continue? y/N: ".to_owned()),
             (Labels::Info_StartingPackageInstallation, "INFO: Starting package installation of: {0}".to_owned()),
             (Labels::Info_ExecutingPreScript, "INFO: Executing pre-script: {0}".to_owned()),
@@ -67,7 +79,11 @@ lazy_static! {
             (Labels::Error_InstallationFailed, "ОШИБКА: Не удалось установить пакеты".to_owned()),
             (Labels::Error_CommandFailed, "ОШИБКА: Не удалось выполнить команду".to_owned()),
             (Labels::Error_CommandStdoutFailed, "ОШИБКА: Не удалось получить стандартный вывод команды".to_owned()),
-            (Labels::Info_ConfirmContinue, "ИНФО: Хотите продолжить? y/N: ".to_owned()),        
+            (Labels::Error_UninstallFailed, "ОШИБКА: Не удалось удалить пакет".to_owned()),
+            (Labels::Error_FileOpenFailed, "ОШИБКА: Не удалось открыть файл {0}".to_owned()),
+            (Labels::Error_FileAlreadyExists, "ОШИБКА: Файл {0} уже существует. Перезапись.".to_owned()),
+            (Labels::Info_NewlyUninstalledPackages, "ИНФО: {0} пакетов было удалено".to_owned()),
+            (Labels::Info_ConfirmContinue, "ИНФО: Хотите продолжить? y/N: ".to_owned()),
             (Labels::Info_StartingPackageInstallation, "ИНФО: Начало установки пакетов: {0}".to_owned()),
             (Labels::Info_ExecutingPreScript, "ИНФО: Выполнение предскрипта: {0}".to_owned()),
             (Labels::Info_ExecutingPostScript, "ИНФО: Выполнение последующего скрипта: {0}".to_owned()),
@@ -89,17 +105,26 @@ pub enum Labels {
     Error_InstallationFailed,
     Error_CommandStdoutFailed,
     Error_CommandFailed,
+    Error_UninstallFailed,
+    Error_FileOpenFailed,
+    Error_FileAlreadyExists,
     // INFO
     Info_ConfirmContinue,
     Info_StartingPackageInstallation,
     Info_ExecutingPreScript,
     Info_ExecutingPostScript,
     Info_NewlyInstalledPackages,
+    Info_NewlyUninstalledPackages,
     Info_CopyingFile,
 }
 
 pub fn t(label: Labels, params: Option<Vec<String>>) -> String {
-    let text: String = TRANSLATIONS.get(&LOCALE.to_string()).unwrap().get(&label).unwrap().to_owned();
+    let text: String = TRANSLATIONS
+        .get(&LOCALE.to_string())
+        .unwrap()
+        .get(&label)
+        .unwrap()
+        .to_owned();
 
     if let Some(params) = params {
         return replace(text, params);
