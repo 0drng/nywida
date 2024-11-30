@@ -20,16 +20,16 @@ pub fn get_packages_str(
         .iter()
         .filter_map(|package| {
             if let Some(aur) = aur {
-                if package.is_aur != aur {
+                if package.is_aur() != aur {
                     return None;
                 }
             }
             if let Some(enabled) = enabled {
-                if package.enabled.unwrap_or(true) != enabled {
+                if package.is_enabled() != enabled {
                     return None;
                 }
             }
-            return Option::Some(package.package_name.clone());
+            return Option::Some(package.get_package_name());
         })
         .collect();
 
@@ -41,10 +41,10 @@ pub fn get_before_scripts(config_file: &ConfigFile) -> Vec<String> {
         .packages
         .iter()
         .filter_map(|package| {
-            if package.enabled.unwrap_or(false) {
+            if package.is_enabled() {
                 return None;
             }
-            package.before_script_path.clone()
+            package.get_before_scripts_path()
         })
         .collect();
 
@@ -56,10 +56,10 @@ pub fn get_post_scripts(config_file: &ConfigFile) -> Vec<String> {
         .packages
         .iter()
         .filter_map(|package| {
-            if package.enabled.unwrap_or(false) {
+            if package.is_enabled() {
                 return None;
             }
-            package.post_script_path.clone()
+            package.get_post_scripts_path()
         })
         .collect();
 
@@ -80,6 +80,8 @@ pub fn install_all_packages(
         .collect();
 
     let mut packages: Vec<String> = get_packages_str(&config_file, Some(false), Some(true));
+    packages.append(&mut config_file.packages_simple.clone());
+
     packages = packages
         .into_iter()
         .filter(|package| !installed_packages.contains(&package))
