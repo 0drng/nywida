@@ -1,7 +1,7 @@
 use args::Args;
 use clap::Parser;
 use error::ApplicationError;
-use model::{ConfigFile, DotConfig};
+use model::{ConfigFile, ConfigFileLock, DotConfig, Script};
 use service::{
     config_service,
     translation_service::{t, Labels},
@@ -24,21 +24,27 @@ fn main() -> Result<(), ApplicationError> {
     }
 
     let config_file: ConfigFile = config_service::get_config(&args.config_path);
+    let config_file_lock_pre: ConfigFileLock = config_service::get_config_file_lock();
+    let mut config_file_lock: ConfigFileLock = ConfigFileLock::empty();
 
     command::ask_continue()?;
 
-    let scripts_path: Vec<String> = config_service::get_before_scripts(&config_file);
-
+    let scripts_path: Vec<Script> = config_service::get_pre_scripts(&config_file);
+    let mut runned_pre_scripts: Vec<Script> = Vec::new();
     for script_path in scripts_path {
         println!(
             "{}",
             t(
                 Labels::Info_ExecutingPreScript,
-                Option::Some(vec![script_path.clone()])
+                Option::Some(vec![script_path.bin.clone()])
             )
         );
-        command::run_command("sh", vec![script_path])?;
+        command::run_command("sh", vec![script_path.bin.clone()])?;
+        runned_pre_scripts.push(script_path);
     }
+    config_file_lock.pre_scripts_runned.append(&mut runned_pre_scripts);
+
+
 
     let amount: usize = config_service::install_all_packages(&config_file, args.update)?;
     println!(
@@ -47,9 +53,11 @@ fn main() -> Result<(), ApplicationError> {
             Labels::Info_NewlyInstalledPackages,
             Option::Some(vec![amount.to_string()])
         )
-    );
+    );    
+    let installed_packages: Vec<String> = config_service::get_packages_str(&config_file, None, Option::Some(true));
+    config_file_lock.packages_installed = installed_packages;
 
-    let amount: usize = config_service::remove_all_packages(&config_file, args.dependencies)?;
+    let amount: usize = config_service::remove_all_packages(&config_file_lock_pre, &config_file, args.dependencies)?;
     println!(
         "{}",
         t(
@@ -57,6 +65,8 @@ fn main() -> Result<(), ApplicationError> {
             Option::Some(vec![amount.to_string()])
         )
     );
+    let removed_packages: Vec<String> = config_service::get_packages_str(&config_file, None, Option::Some(false));
+    config_file_lock.packages_removed = removed_packages;
 
     let dot_files: Vec<DotConfig> = config_file
         .packages
@@ -68,18 +78,23 @@ fn main() -> Result<(), ApplicationError> {
         config_service::copy_file(&dot_file.src, &dot_file.dest).unwrap();
     }
 
-    let scripts_path: Vec<String> = config_service::get_post_scripts(&config_file);
+    let scripts_path: Vec<Script> = config_service::get_post_scripts(&config_file);
+    let mut runned_post_scripts: Vec<Script> = Vec::new();
 
     for script_path in scripts_path {
         println!(
             "{}",
             t(
                 Labels::Info_ExecutingPostScript,
-                Option::Some(vec![script_path.clone()])
+                Option::Some(vec![script_path.bin.clone()])
             )
         );
-        command::run_command("sh", vec![script_path])?;
+        command::run_command("sh", vec![script_path.bin.clone()])?;
+        runned_post_scripts.push(script_path);
     }
+    config_file_lock.post_scripts_runned.append(&mut runned_post_scripts);
+
+    config_service::save_lock(&config_file_lock);
 
     Ok(())
 }
