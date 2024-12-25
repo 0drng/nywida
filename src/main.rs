@@ -23,7 +23,7 @@ fn main() -> Result<(), ApplicationError> {
         std::process::exit(1);
     }
 
-    let config_file: ConfigFile = config_service::get_config(&args.config_path);
+    let config_file: ConfigFile = config_service::get_merged_config(&args.config_path);
     let config_file_lock_pre: ConfigFileLock = config_service::get_config_file_lock();
     let mut config_file_lock: ConfigFileLock = ConfigFileLock::empty();
 

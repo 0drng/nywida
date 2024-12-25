@@ -1,4 +1,4 @@
-use std::{fs::File, io::Read};
+use std::{fs::{read_dir, File}, io::Read};
 
 use serde_jsonc::json;
 
@@ -177,6 +177,18 @@ pub fn remove_all_packages(
     return Ok(packages_len);
 }
 
+pub fn get_merged_config(path: &str) -> ConfigFile {
+    let configs: Vec<ConfigFile> = get_configs_rec(path);
+    let mut merged_config: ConfigFile = ConfigFile { packages: vec![], packages_simple: vec![] };
+
+    for mut config in configs {
+        merged_config.packages.append(&mut config.packages);
+        merged_config.packages_simple.append(&mut config.packages_simple);
+    }
+
+    return merged_config;
+} 
+
 pub fn get_config(path: &str) -> ConfigFile {
     let mut file: File = File::open(path).expect(&format!(
         "{}",
@@ -189,6 +201,24 @@ pub fn get_config(path: &str) -> ConfigFile {
     let config_file: ConfigFile = serde_jsonc::from_str(&config_json).unwrap();
 
     return config_file;
+}
+
+pub fn get_configs_rec(path: &str) -> Vec<ConfigFile> {
+    let mut configs: Vec<ConfigFile> = Vec::new();
+    for dir_entry in read_dir(path).unwrap() {
+        let dir_entry_path = dir_entry.unwrap().path();
+        let dir_entry_path_str: &str = dir_entry_path.to_str().unwrap();
+        if dir_entry_path.is_dir() {
+            configs.append(&mut get_configs_rec(dir_entry_path_str));
+        }
+        if dir_entry_path.is_file() {
+            if dir_entry_path.extension().unwrap() == "jsonc" {
+                configs.push(get_config(dir_entry_path_str));
+            }
+        }
+    }
+
+    return configs
 }
 
 pub fn get_config_file_lock() -> ConfigFileLock {
