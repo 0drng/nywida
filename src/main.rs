@@ -75,11 +75,12 @@ fn main() -> Result<(), ApplicationError> {
         .collect();
 
     for dot_file in dot_files {
-        if let Some(src) = dot_file.src {
-            config_service::copy_file(&src, &dot_file.dest).unwrap();
-        }
         if let Some(content) = dot_file.content {
             std::fs::write(&dot_file.dest, content).unwrap();
+        } else {
+            if let Some(src) = dot_file.src {
+                config_service::copy_file(&src, &dot_file.dest).unwrap();
+            }
         }
     }
 
